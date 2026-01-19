@@ -1,5 +1,16 @@
 const API_URL = "/api";
 
+// --- CONFIGURACIÓN DE MESES Y AÑOS ---
+const yearsGrid = [2026, 2027];
+const monthsGrid = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+// --- AQUÍ PUEDES AGREGAR MÁS TIPOS DE PAGO ---
+// Ejemplo: { id: 'uniforme', label: 'Uniforme' }
+const specialTypesGrid = [
+    { id: 'inscripcion', label: 'Inscripción' },
+    { id: 'gastos_varios', label: 'Gastos Varios' }
+];
+
 // Navigation Logic
 const navLinks = document.querySelectorAll('.nav-link');
 const sections = document.querySelectorAll('.content-section');
