@@ -10,6 +10,10 @@ const wsModal = document.getElementById('workshop-modal');
 const closeBtn = document.querySelector('.close-btn');
 let currentWsId = null;
 
+// Global Server Time (synchronized via stats)
+let serverYear = new Date().getFullYear();
+let serverMonth = new Date().getMonth() + 1;
+
 closeBtn.onclick = () => {
     wsModal.style.display = "none";
     currentWsId = null;
@@ -50,6 +54,13 @@ async function updateDashboardStats() {
         document.getElementById('stat-students').textContent = stats.students;
         document.getElementById('stat-alerts').textContent = stats.alerts;
         document.getElementById('stat-pending').textContent = stats.pending_payments;
+        
+        // Sync time
+        if (stats.server_year && stats.server_month) {
+            serverYear = stats.server_year;
+            serverMonth = stats.server_month;
+            console.log(`Server time synced: ${serverMonth}/${serverYear}`);
+        }
     } catch (e) {
         console.error("Dashboard error:", e);
     }
@@ -132,20 +143,26 @@ async function loadPayments(plan = 'todos') {
 }
 
 async function checkPaymentStatus(studentId) {
-    const month = new Date().getMonth() + 1;
-    const year = new Date().getFullYear();
-    const response = await fetch(`${API_URL}/payments/${studentId}`);
-    const payments = await response.json();
-    
-    const paidThisMonth = payments.find(p => p.month === month && p.year === year && p.is_paid);
-    const statusCell = document.getElementById(`status-${studentId}`);
-    statusCell.textContent = paidThisMonth ? '✅ Pagado' : '❌ Pendiente';
-    statusCell.style.color = paidThisMonth ? 'green' : 'red';
+    const month = serverMonth;
+    const year = serverYear;
+    try {
+        const response = await fetch(`${API_URL}/payments/${studentId}`);
+        const payments = await response.json();
+        
+        const paidThisMonth = payments.find(p => p.month === month && p.year === year && p.is_paid);
+        const statusCell = document.getElementById(`status-${studentId}`);
+        if (statusCell) {
+            statusCell.textContent = paidThisMonth ? '✅ Pagado' : '❌ Pendiente';
+            statusCell.style.color = paidThisMonth ? 'green' : 'red';
+        }
+    } catch (e) {
+        console.error("Error checkPaymentStatus:", e);
+    }
 }
 
 async function togglePay(studentId) {
-    const month = new Date().getMonth() + 1;
-    const year = new Date().getFullYear();
+    const month = serverMonth;
+    const year = serverYear;
     try {
         const response = await fetch(`${API_URL}/payments/toggle/?student_id=${studentId}&month=${month}&year=${year}`, {
             method: 'POST'

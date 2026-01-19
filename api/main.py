@@ -150,7 +150,9 @@ def get_stats(db: Session = Depends(get_db)):
     return {
         "students": student_count,
         "alerts": alert_count,
-        "pending_payments": total_pending
+        "pending_payments": total_pending,
+        "server_year": current_year,
+        "server_month": current_month
     }
 
 @router.get("/inventory/alerts/")
