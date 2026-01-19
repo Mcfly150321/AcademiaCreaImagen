@@ -30,6 +30,7 @@ class Payment(Base):
     student_id = Column(String, ForeignKey("students.carnet"))
     month = Column(Integer)
     year = Column(Integer)
+    payment_type = Column(String, default="mensualidad") # mensualidad, inscripcion, gastos_varios
     is_paid = Column(Boolean, default=False)
 
     student = relationship("Student", back_populates="payments")

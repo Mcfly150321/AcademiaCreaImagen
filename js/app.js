@@ -79,6 +79,36 @@ ageInput.addEventListener('input', () => {
     guardianFields.style.display = age < 18 ? 'block' : 'none';
 });
 
+function renderRegPaymentGrid() {
+    const container = document.getElementById('reg-payment-grid');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="payment-grid-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                ${specialTypesGrid.map(type => `
+                    <button type="button" class="btn-pay-item" onclick="this.classList.toggle('paid')" data-type="${type.id}" data-month="0" data-year="0">
+                        ${type.label}
+                    </button>
+                `).join('')}
+            </div>
+            ${yearsGrid.map(year => `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: bold; font-size: 12px; min-width: 40px;">${year}:</span>
+                    <div style="display: flex; gap: 2px; flex-wrap: wrap;">
+                        ${monthsGrid.map((m, i) => `
+                            <button type="button" class="btn-month-item" onclick="this.classList.toggle('paid')" data-type="mensualidad" data-month="${i+1}" data-year="${year}">
+                                ${m}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+renderRegPaymentGrid();
+
 regForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(regForm);
@@ -99,8 +129,19 @@ regForm.addEventListener('submit', async (e) => {
         }
 
         const student = await response.json();
+        
+        // Procesar pagos seleccionados en el grid de registro
+        const selectedPayments = document.querySelectorAll('#reg-payment-grid .paid');
+        for (const btn of selectedPayments) {
+            const m = btn.getAttribute('data-month');
+            const y = btn.getAttribute('data-year');
+            const t = btn.getAttribute('data-type');
+            await togglePay(student.carnet, m, y, t);
+        }
+
         alert(`Alumna inscrita con éxito. Carnet: ${student.carnet}`);
         regForm.reset();
+        renderRegPaymentGrid(); // Reset grid
         updateDashboardStats();
     } catch (error) {
         console.error("Error al inscribir:", error);
@@ -110,9 +151,7 @@ regForm.addEventListener('submit', async (e) => {
 
 // Payments Logic
 async function loadPayments(plan = 'todos') {
-    const tbody = document.getElementById('payments-table-body');
-    tbody.innerHTML = '<tr><td colspan="4">Cargando...</td></tr>';
-
+    const tbody = document.querySelector('#payments-table tbody');
     try {
         const response = await fetch(`${API_URL}/students/${plan}`);
         if (!response.ok) throw new Error("No se pudierón cargar las alumnas");
@@ -120,59 +159,105 @@ async function loadPayments(plan = 'todos') {
         
         tbody.innerHTML = '';
         if (students.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4">No hay alumnas en este plan</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2">No hay alumnas en este plan</td></tr>';
             return;
         }
+
         students.forEach(student => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${student.carnet}</td>
-                <td>${student.names} ${student.lastnames}</td>
-                <td id="status-${student.carnet}">Cargando...</td>
                 <td>
-                    <div style="display: flex; gap: 5px;">
-                        <button class="btn-secondary" onclick="togglePay('${student.carnet}')">Cambiar Estado</button>
-                        <button class="btn-secondary" style="color: red; border-color: #fca5a5;" onclick="deleteStudent('${student.carnet}')">Eliminar</button>
+                    <strong>${student.names} ${student.lastnames}</strong><br>
+                    <small style="color: #64748b;">Carnet: ${student.carnet}</small>
+                    <div style="margin-top: 5px;">
+                        <button class="btn-secondary" style="color: red; border-color: #fca5a5; padding: 2px 8px; font-size: 10px;" onclick="deleteStudent('${student.carnet}')">Eliminar Alumna</button>
+                    </div>
+                </td>
+                <td>
+                    <div class="payment-grid-container" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Pagos Especiales -->
+                        <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                            ${specialTypesGrid.map(type => `
+                                <button id="pay-${student.carnet}-${type.id}" 
+                                        class="btn-pay-item" 
+                                        onclick="togglePay('${student.carnet}', 0, 0, '${type.id}')">
+                                    ${type.label}
+                                </button>
+                            `).join('')}
+                        </div>
+                        
+                        <!-- Años -->
+                        ${yearsGrid.map(year => `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: bold; font-size: 12px; min-width: 40px;">${year}:</span>
+                                <div style="display: flex; gap: 2px; flex-wrap: wrap;">
+                                    ${monthsGrid.map((m, i) => `
+                                        <button id="pay-${student.carnet}-${year}-${i+1}" 
+                                                class="btn-month-item" 
+                                                title="${m} ${year}"
+                                                onclick="togglePay('${student.carnet}', ${i+1}, ${year}, 'mensualidad')">
+                                            ${m}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </td>
             `;
             tbody.appendChild(tr);
-            checkPaymentStatus(student.carnet);
+            checkAllPayments(student.carnet);
         });
     } catch (error) {
         console.error("Error al cargar pagos:", error);
-        tbody.innerHTML = '<tr><td colspan="4" style="color: red;">Error al cargar datos</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="2" style="color: red;">Error al cargar datos</td></tr>';
     }
 }
 
-async function checkPaymentStatus(studentId) {
-    const month = serverMonth;
-    const year = serverYear;
+async function checkAllPayments(studentId) {
     try {
         const response = await fetch(`${API_URL}/payments/${studentId}`);
         const payments = await response.json();
         
-        const paidThisMonth = payments.find(p => p.month === month && p.year === year && p.is_paid);
-        const statusCell = document.getElementById(`status-${studentId}`);
-        if (statusCell) {
-            statusCell.textContent = paidThisMonth ? '✅ Pagado' : '❌ Pendiente';
-            statusCell.style.color = paidThisMonth ? 'green' : 'red';
-        }
+        // Marcar mensuales
+        yearsGrid.forEach(year => {
+            for (let m = 1; m <= 12; m++) {
+                const isPaid = payments.find(p => p.month === m && p.year === year && p.payment_type === 'mensualidad');
+                const btn = document.getElementById(`pay-${studentId}-${year}-${m}`);
+                if (btn) {
+                    btn.classList.toggle('paid', !!isPaid);
+                }
+            }
+        });
+
+        // Marcar especiales
+        specialTypesGrid.forEach(s => {
+            const isPaid = payments.find(p => p.payment_type === s.id);
+            const btn = document.getElementById(`pay-${studentId}-${s.id}`);
+            if (btn) {
+                btn.classList.toggle('paid', !!isPaid);
+            }
+        });
+
     } catch (e) {
-        console.error("Error checkPaymentStatus:", e);
+        console.error("Error checkAllPayments:", e);
     }
 }
 
-async function togglePay(studentId) {
-    const month = serverMonth;
-    const year = serverYear;
+async function togglePay(studentId, month, year, type = 'mensualidad') {
     try {
-        const response = await fetch(`${API_URL}/payments/toggle/?student_id=${studentId}&month=${month}&year=${year}`, {
+        const response = await fetch(`${API_URL}/payments/toggle/?student_id=${studentId}&month=${month}&year=${year}&payment_type=${type}`, {
             method: 'POST'
         });
         if (!response.ok) throw new Error("Error toggling payment");
-        const result = await response.json();
-        checkPaymentStatus(studentId);
+        
+        // Actualizar UI del botón individualmente para que sea instantáneo
+        const btnId = month === 0 ? `pay-${studentId}-${type}` : `pay-${studentId}-${year}-${month}`;
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.classList.toggle('paid');
+        }
+
         updateDashboardStats();
     } catch (e) {
         console.error("Toggle pay error:", e);

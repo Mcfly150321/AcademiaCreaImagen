@@ -74,22 +74,36 @@ def toggle_payment(
     student_id: str = Query(...), 
     month: int = Query(...), 
     year: int = Query(...), 
+    payment_type: str = Query("mensualidad"),
     db: Session = Depends(get_db)
 ):
     payment = db.query(models.Payment).filter(
         models.Payment.student_id == student_id,
         models.Payment.month == month,
-        models.Payment.year == year
+        models.Payment.year == year,
+        models.Payment.payment_type == payment_type
     ).first()
 
     if payment:
-        payment.is_paid = not payment.is_paid
+        # Si ya existe, lo borramos (Toggle OFF)
+        db.delete(payment)
+        status = "deleted"
+        is_paid = False
     else:
-        payment = models.Payment(student_id=student_id, month=month, year=year, is_paid=True)
+        # Si no existe, lo creamos (Toggle ON)
+        payment = models.Payment(
+            student_id=student_id, 
+            month=month, 
+            year=year, 
+            payment_type=payment_type,
+            is_paid=True
+        )
         db.add(payment)
+        status = "created"
+        is_paid = True
     
     db.commit()
-    return {"status": "success", "is_paid": payment.is_paid}
+    return {"status": status, "is_paid": is_paid}
 
 # Inventory
 @router.post("/products/", response_model=schemas.ProductSchema)

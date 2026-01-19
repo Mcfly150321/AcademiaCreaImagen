@@ -316,3 +316,32 @@ input:checked + .slider:before {
     display: flex;
     justify-content: space-between;
 }
+/* Payment Grid Styles */
+.btn-month-item, .btn-pay-item {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 35px;
+    text-align: center;
+}
+
+.btn-month-item:hover, .btn-pay-item:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+.btn-month-item.paid, .btn-pay-item.paid {
+    background: #22c55e;
+    color: white;
+    border-color: #16a34a;
+    font-weight: bold;
+}
+
+.btn-pay-item {
+    padding: 6px 12px;
+    font-size: 12px;
+}
