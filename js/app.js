@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000";
+const API_URL = "/api";
 
 // Navigation Logic
 const navLinks = document.querySelectorAll('.nav-link');

@@ -12,15 +12,6 @@ import random
 
 app = FastAPI()
 
-
-@app.get("/")  # Esto será accesible en /api/
-async def root():
-    return {"message": "Hello from API"}
-
-@app.post("/tu-endpoint")  # Esto será /api/tu-endpoint
-async def tu_funcion():
-    return {"status": "ok"}
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
