@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from backend import database, schemas, models
-from backend.database import SessionLocal, init_db
+
+# Cambia esto:
+from . import database, schemas, models
+from .database import SessionLocal, init_db
 from .generatecarnet import generate_carnet
 
-# ESTO FALTABA:
 import datetime
 import random
 
