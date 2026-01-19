@@ -5,7 +5,7 @@ from . import models
 def generate_carnet(db: Session, plan: str):
     # Count students to generate a simple sequential ID
     count = db.query(models.Student).count() + 1
-    year = datetime.datetime.now().year
+    year = datetime.now().year
     suffix = "00"
     if plan == "diario":
         suffix = "10"

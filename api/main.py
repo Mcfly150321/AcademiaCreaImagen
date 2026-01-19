@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ import datetime
 import random
 
 app = FastAPI()
+router = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +33,7 @@ def get_db():
         db.close()
 
 
-@app.post("/students/", response_model=schemas.StudentSchema)
+@router.post("/students/", response_model=schemas.StudentSchema)
 def create_student(student: schemas.StudentCreate, db: Session = Depends(get_db)):
     db_student = models.Student(**student.dict())
     db_student.carnet = generate_carnet(db, student.plan)
@@ -43,23 +44,23 @@ def create_student(student: schemas.StudentCreate, db: Session = Depends(get_db)
     return db_student
 
 
-@app.get("/students/", response_model=list[schemas.StudentSchema])
+@router.get("/students/", response_model=list[schemas.StudentSchema])
 def read_students(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     students = db.query(models.Student).offset(skip).limit(limit).all()
     return students
 
-@app.get("/students/{plan}", response_model=list[schemas.StudentSchema])
+@router.get("/students/{plan}", response_model=list[schemas.StudentSchema])
 def read_students_by_plan(plan: str, db: Session = Depends(get_db)):
     if plan == "todos":
         return db.query(models.Student).all()
     return db.query(models.Student).filter(models.Student.plan == plan).all()
 
 # Payments
-@app.get("/payments/{student_id}", response_model=list[schemas.PaymentSchema])
+@router.get("/payments/{student_id}", response_model=list[schemas.PaymentSchema])
 def get_payments(student_id: int, db: Session = Depends(get_db)):
     return db.query(models.Payment).filter(models.Payment.student_id == student_id).all()
 
-@app.post("/payments/toggle/")
+@router.post("/payments/toggle/")
 def toggle_payment(
     student_id: int = Query(...), 
     month: int = Query(...), 
@@ -82,7 +83,7 @@ def toggle_payment(
     return {"status": "success", "is_paid": payment.is_paid}
 
 # Inventory
-@app.post("/products/", response_model=schemas.ProductSchema)
+@router.post("/products/", response_model=schemas.ProductSchema)
 def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
     db_product = models.Product(**product.dict())
     db.add(db_product)
@@ -90,11 +91,11 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     db.refresh(db_product)
     return db_product
 
-@app.get("/products/", response_model=list[schemas.ProductSchema])
+@router.get("/products/", response_model=list[schemas.ProductSchema])
 def read_products(db: Session = Depends(get_db)):
     return db.query(models.Product).all()
 
-@app.get("/products/{code}", response_model=schemas.ProductSchema)
+@router.get("/products/{code}", response_model=schemas.ProductSchema)
 def read_product_by_code(code: str, db: Session = Depends(get_db)):
     product = db.query(models.Product).filter(models.Product.code == code).first()
     if not product:
@@ -102,7 +103,7 @@ def read_product_by_code(code: str, db: Session = Depends(get_db)):
     return product
 
 # Workshops
-@app.post("/workshops/", response_model=schemas.WorkshopSchema)
+@router.post("/workshops/", response_model=schemas.WorkshopSchema)
 def create_workshop(workshop: schemas.WorkshopBase, db: Session = Depends(get_db)):
     db_workshop = models.Workshop(**workshop.dict())
     db.add(db_workshop)
@@ -110,11 +111,11 @@ def create_workshop(workshop: schemas.WorkshopBase, db: Session = Depends(get_db
     db.refresh(db_workshop)
     return db_workshop
 
-@app.get("/workshops/", response_model=list[schemas.WorkshopSchema])
+@router.get("/workshops/", response_model=list[schemas.WorkshopSchema])
 def read_workshops(db: Session = Depends(get_db)):
     return db.query(models.Workshop).all()
 
-@app.get("/stats/")
+@router.get("/stats/")
 def get_stats(db: Session = Depends(get_db)):
     students = db.query(models.Student).all()
     student_count = len(students)
@@ -152,19 +153,19 @@ def get_stats(db: Session = Depends(get_db)):
         "pending_payments": total_pending
     }
 
-@app.get("/inventory/alerts/")
+@router.get("/inventory/alerts/")
 def get_inventory_alerts(db: Session = Depends(get_db)):
     return db.query(models.Product).filter(models.Product.units <= models.Product.alert_threshold).all()
 
 # Workshops and Packages
-@app.post("/workshops/{workshop_id}/students/{student_id}")
+@router.post("/workshops/{workshop_id}/students/{student_id}")
 def add_student_to_workshop(workshop_id: int, student_id: int, db: Session = Depends(get_db)):
     assoc = models.WorkshopStudent(workshop_id=workshop_id, student_id=student_id)
     db.add(assoc)
     db.commit()
     return {"status": "success"}
 
-@app.get("/workshops/{workshop_id}/students/", response_model=list)
+@router.get("/workshops/{workshop_id}/students/", response_model=list)
 def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
     students = db.query(models.WorkshopStudent).filter(models.WorkshopStudent.workshop_id == workshop_id).all()
     result = []
@@ -181,7 +182,7 @@ def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
             })
     return result
 
-@app.post("/workshops/{workshop_id}/packages/", response_model=schemas.PackageSchema)
+@router.post("/workshops/{workshop_id}/packages/", response_model=schemas.PackageSchema)
 def create_package(workshop_id: int, package: schemas.PackageCreate, db: Session = Depends(get_db)):
     db_package = models.Package(**package.dict())
     db_package.workshop_id = workshop_id
@@ -190,7 +191,7 @@ def create_package(workshop_id: int, package: schemas.PackageCreate, db: Session
     db.refresh(db_package)
     return db_package
 
-@app.post("/workshops/{workshop_id}/generate-diplomas/")
+@router.post("/workshops/{workshop_id}/generate-diplomas/")
 def generate_diplomas(workshop_id: int, db: Session = Depends(get_db)):
     # Mocking Canva integration
     workshop = db.query(models.Workshop).get(workshop_id)
@@ -203,11 +204,11 @@ def generate_diplomas(workshop_id: int, db: Session = Depends(get_db)):
         "canva_link": f"https://www.canva.com/design/mock-{random.randint(1000, 9999)}/view"
     }
 
-@app.get("/workshops/{workshop_id}/packages/", response_model=list[schemas.PackageSchema])
+@router.get("/workshops/{workshop_id}/packages/", response_model=list[schemas.PackageSchema])
 def get_workshop_packages(workshop_id: int, db: Session = Depends(get_db)):
     return db.query(models.Package).filter(models.Package.workshop_id == workshop_id).all()
 
-@app.put("/packages/{package_id}", response_model=schemas.PackageSchema)
+@router.put("/packages/{package_id}", response_model=schemas.PackageSchema)
 def update_package(package_id: int, package_data: schemas.PackageCreate, db: Session = Depends(get_db)):
     db_package = db.query(models.Package).get(package_id)
     if not db_package:
@@ -218,7 +219,7 @@ def update_package(package_id: int, package_data: schemas.PackageCreate, db: Ses
     db.refresh(db_package)
     return db_package
 
-@app.delete("/packages/{package_id}")
+@router.delete("/packages/{package_id}")
 def delete_package(package_id: int, db: Session = Depends(get_db)):
     db_package = db.query(models.Package).get(package_id)
     if not db_package:
@@ -227,7 +228,7 @@ def delete_package(package_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success"}
 
-@app.post("/workshop-students/toggle/")
+@router.post("/workshop-students/toggle/")
 def toggle_workshop_payment(workshop_id: int, student_id: int, payment_type: str, db: Session = Depends(get_db)):
     # payment_type can be 'package' or 'workshop'
     assoc = db.query(models.WorkshopStudent).filter(
@@ -245,3 +246,5 @@ def toggle_workshop_payment(workshop_id: int, student_id: int, payment_type: str
     
     db.commit()
     return {"status": "success", "package_paid": assoc.package_paid, "workshop_paid": assoc.workshop_paid}
+
+app.include_router(router)
