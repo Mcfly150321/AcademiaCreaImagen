@@ -6,14 +6,25 @@
     }
   ],
   "routes": [
-    { "handle": "filesystem" },
+    {
+      "src": "/index.html",
+      "dest": "/index.html"
+    },
     {
       "src": "/api/(.*)",
       "dest": "api/main.py"
     },
     {
-      "src": "/(.*)",
+      "src": "/docs",
       "dest": "api/main.py"
+    },
+    {
+      "src": "/openapi.json",
+      "dest": "api/main.py"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
     }
   ]
 }
