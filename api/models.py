@@ -5,14 +5,13 @@ from .database import Base
 class Student(Base):
     __tablename__ = "students"
 
-    id = Column(Integer, primary_key=True, index=True)
+    carnet = Column(String, primary_key=True, index=True)
     names = Column(String)
     lastnames = Column(String)
     age = Column(Integer)
     cui = Column(String, unique=True, index=True)
     phone = Column(String)
     is_adult = Column(Boolean)
-    carnet = Column(String, unique=True, index=True)
     plan = Column(String) # diario, fin_de_semana, ejecutivo
     guardian1_name = Column(String, nullable=True)
     guardian1_phone = Column(String, nullable=True)
@@ -21,14 +20,14 @@ class Student(Base):
     photo_url = Column(String, nullable=True)
     registration_date = Column(String, nullable=True) # YYYY-MM
 
-    payments = relationship("Payment", back_populates="student")
-    workshops = relationship("WorkshopStudent", back_populates="student")
+    payments = relationship("Payment", back_populates="student", cascade="all, delete-orphan")
+    workshops = relationship("WorkshopStudent", back_populates="student", cascade="all, delete-orphan")
 
 class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"))
+    student_id = Column(String, ForeignKey("students.carnet"))
     month = Column(Integer)
     year = Column(Integer)
     is_paid = Column(Boolean, default=False)
@@ -52,15 +51,15 @@ class Workshop(Base):
     name = Column(String)
     description = Column(String)
 
-    students = relationship("WorkshopStudent", back_populates="workshop")
-    packages = relationship("Package", back_populates="workshop")
+    students = relationship("WorkshopStudent", back_populates="workshop", cascade="all, delete-orphan")
+    packages = relationship("Package", back_populates="workshop", cascade="all, delete-orphan")
 
 class WorkshopStudent(Base):
     __tablename__ = "workshop_students"
 
     id = Column(Integer, primary_key=True, index=True)
     workshop_id = Column(Integer, ForeignKey("workshops.id"))
-    student_id = Column(Integer, ForeignKey("students.id"))
+    student_id = Column(String, ForeignKey("students.carnet"))
     package_paid = Column(Boolean, default=False)
     workshop_paid = Column(Boolean, default=False)
 
@@ -76,7 +75,7 @@ class Package(Base):
     workshop_id = Column(Integer, ForeignKey("workshops.id"))
 
     workshop = relationship("Workshop", back_populates="packages")
-    products = relationship("PackageProduct", back_populates="package")
+    products = relationship("PackageProduct", back_populates="package", cascade="all, delete-orphan")
 
 class PackageProduct(Base):
     __tablename__ = "package_products"

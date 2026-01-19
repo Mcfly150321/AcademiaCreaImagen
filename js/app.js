@@ -128,13 +128,16 @@ async function loadPayments(plan = 'todos') {
             tr.innerHTML = `
                 <td>${student.carnet}</td>
                 <td>${student.names} ${student.lastnames}</td>
-                <td id="status-${student.id}">Cargando...</td>
+                <td id="status-${student.carnet}">Cargando...</td>
                 <td>
-                    <button class="btn-secondary" onclick="togglePay(${student.id})">Cambiar Estado</button>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn-secondary" onclick="togglePay('${student.carnet}')">Cambiar Estado</button>
+                        <button class="btn-secondary" style="color: red; border-color: #fca5a5;" onclick="deleteStudent('${student.carnet}')">Eliminar</button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
-            checkPaymentStatus(student.id);
+            checkPaymentStatus(student.carnet);
         });
     } catch (error) {
         console.error("Error al cargar pagos:", error);
@@ -174,6 +177,22 @@ async function togglePay(studentId) {
     } catch (e) {
         console.error("Toggle pay error:", e);
         alert("No se pudo actualizar el pago");
+    }
+}
+
+async function deleteStudent(carnet) {
+    if (!confirm(`¿Estás segura de eliminar a la alumna con carnet ${carnet}? Se borrarán también sus registros de pagos y talleres.`)) return;
+    try {
+        const response = await fetch(`${API_URL}/students/${carnet}`, { method: 'DELETE' });
+        if (response.ok) {
+            alert("Alumna eliminada");
+            loadStudentsByPlan(document.getElementById('filter-plan').value);
+            updateDashboardStats();
+        } else {
+            alert("Error al eliminar");
+        }
+    } catch (e) {
+        console.error("Delete student error:", e);
     }
 }
 
@@ -390,7 +409,7 @@ async function fillStudentSelect() {
         if (!Array.isArray(students) || students.length === 0) {
             select.innerHTML = '<option value="">Sin alumnas</option>';
         } else {
-            select.innerHTML = students.map(s => `<option value="${s.id}">${s.names} ${s.lastnames}</option>`).join('');
+            select.innerHTML = students.map(s => `<option value="${s.carnet}">${s.names} ${s.lastnames} (${s.carnet})</option>`).join('');
         }
     } catch (e) {
         console.error("Error al llenar select de alumnas:", e);
@@ -439,13 +458,13 @@ async function loadModalStudents() {
                             <td>${s.names}</td>
                             <td>
                                 <label class="switch">
-                                    <input type="checkbox" ${s.workshop_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, ${s.student_id}, 'workshop')">
+                                    <input type="checkbox" ${s.workshop_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'workshop')">
                                     <span class="slider"></span>
                                 </label>
                             </td>
                             <td>
                                 <label class="switch">
-                                    <input type="checkbox" ${s.package_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, ${s.student_id}, 'package')">
+                                    <input type="checkbox" ${s.package_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'package')">
                                     <span class="slider"></span>
                                 </label>
                             </td>

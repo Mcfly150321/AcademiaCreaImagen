@@ -7,11 +7,11 @@ class PaymentBase(BaseModel):
     is_paid: bool = False
 
 class PaymentCreate(PaymentBase):
-    student_id: int
+    student_id: str
 
 class PaymentSchema(PaymentBase):
     id: int
-    student_id: int
+    student_id: str
 
     class Config:
         from_attributes = True
@@ -34,8 +34,8 @@ class StudentCreate(StudentBase):
     pass
 
 class StudentSchema(StudentBase):
-    id: int
     carnet: str
+    registration_date: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -79,14 +79,6 @@ class PackageCreate(PackageBase):
 
 class PackageSchema(PackageBase):
     id: int
-
-    class Config:
-        from_attributes = True
-        
-class StudentSchema(StudentBase):
-    id: int
-    carnet: str
-    registration_date: Optional[str] = None # Añade esto para que coincida con el modelo
 
     class Config:
         from_attributes = True

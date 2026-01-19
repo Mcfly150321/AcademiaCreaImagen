@@ -55,14 +55,23 @@ def read_students_by_plan(plan: str, db: Session = Depends(get_db)):
         return db.query(models.Student).all()
     return db.query(models.Student).filter(models.Student.plan == plan).all()
 
+@router.delete("/students/{carnet}")
+def delete_student(carnet: str, db: Session = Depends(get_db)):
+    db_student = db.query(models.Student).filter(models.Student.carnet == carnet).first()
+    if not db_student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    db.delete(db_student)
+    db.commit()
+    return {"status": "success", "message": "Student deleted"}
+
 # Payments
 @router.get("/payments/{student_id}", response_model=list[schemas.PaymentSchema])
-def get_payments(student_id: int, db: Session = Depends(get_db)):
+def get_payments(student_id: str, db: Session = Depends(get_db)):
     return db.query(models.Payment).filter(models.Payment.student_id == student_id).all()
 
 @router.post("/payments/toggle/")
 def toggle_payment(
-    student_id: int = Query(...), 
+    student_id: str = Query(...), 
     month: int = Query(...), 
     year: int = Query(...), 
     db: Session = Depends(get_db)
@@ -141,7 +150,7 @@ def get_stats(db: Session = Depends(get_db)):
         
         # Count paid months for this student
         paid_count = db.query(models.Payment).filter(
-            models.Payment.student_id == s.id,
+            models.Payment.student_id == s.carnet,
             models.Payment.is_paid == True
         ).count()
         
@@ -161,7 +170,7 @@ def get_inventory_alerts(db: Session = Depends(get_db)):
 
 # Workshops and Packages
 @router.post("/workshops/{workshop_id}/students/{student_id}")
-def add_student_to_workshop(workshop_id: int, student_id: int, db: Session = Depends(get_db)):
+def add_student_to_workshop(workshop_id: int, student_id: str, db: Session = Depends(get_db)):
     assoc = models.WorkshopStudent(workshop_id=workshop_id, student_id=student_id)
     db.add(assoc)
     db.commit()
@@ -173,7 +182,7 @@ def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
     result = []
     for s in students:
         # Cambio aquí:
-        student_data = db.query(models.Student).filter(models.Student.id == s.student_id).first()
+        student_data = db.query(models.Student).filter(models.Student.carnet == s.student_id).first()
         if student_data:
             result.append({
                 "student_id": s.student_id,
@@ -231,7 +240,7 @@ def delete_package(package_id: int, db: Session = Depends(get_db)):
     return {"status": "success"}
 
 @router.post("/workshop-students/toggle/")
-def toggle_workshop_payment(workshop_id: int, student_id: int, payment_type: str, db: Session = Depends(get_db)):
+def toggle_workshop_payment(workshop_id: int, student_id: str, payment_type: str, db: Session = Depends(get_db)):
     # payment_type can be 'package' or 'workshop'
     assoc = db.query(models.WorkshopStudent).filter(
         models.WorkshopStudent.workshop_id == workshop_id,
