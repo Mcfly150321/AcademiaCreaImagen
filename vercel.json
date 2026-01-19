@@ -3,13 +3,21 @@
     {
       "src": "api/main.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "css/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "js/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
-    {
-      "src": "/index.html",
-      "dest": "/index.html"
-    },
     {
       "src": "/api/(.*)",
       "dest": "api/main.py"
@@ -19,12 +27,12 @@
       "dest": "api/main.py"
     },
     {
-      "src": "/openapi.json",
-      "dest": "api/main.py"
+      "src": "/(index.html)?",
+      "dest": "/index.html"
     },
     {
-      "src": "/",
-      "dest": "/index.html"
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
