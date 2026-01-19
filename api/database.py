@@ -3,19 +3,18 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-# 1. Obtenemos la URL de la variable de entorno de Vercel
+# Agregamos una validación para que no explote si la variable no carga a tiempo
 SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
 
-# 2. Creamos el motor SIN el connect_args (ya que es para Postgres)
+if not SQLALCHEMY_DATABASE_URL:
+    # Esto evita el crash inmediato y te permite ver el error real en los logs
+    raise ValueError("La variable SQLALCHEMY_DATABASE_URL no está configurada en Vercel")
+
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
-
-# 3. Configuramos la sesión
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# 4. Definimos la base para los modelos
 Base = declarative_base()
 
 def init_db():
-    # Esto creará las tablas en Supabase automáticamente
-    from . import models  # Asegúrate de que la ruta sea correcta
+    # Usamos el nombre de la carpeta 'api' en lugar del punto para ser explícitos
+    from api import models
     Base.metadata.create_all(bind=engine)
