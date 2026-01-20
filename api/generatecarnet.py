@@ -11,11 +11,13 @@ def generate_carnet(db: Session, plan: str):
         models.Student.carnet.like(f"{prefix}%")
     ).order_by(models.Student.carnet.desc()).first()
     
-    if max_carnet:
+    if max_carnet and len(max_carnet[0]) >= 8:
         # Extrae el número secuencial (asumiendo formato YYYYNNNNXX)
-        # Tomamos los 4 dígitos después del año
-        last_seq = int(max_carnet[0][4:8])
-        new_seq = last_seq + 1
+        try:
+            last_seq = int(max_carnet[0][4:8])
+            new_seq = last_seq + 1
+        except (ValueError, IndexError):
+            new_seq = 1
     else:
         new_seq = 1
         
