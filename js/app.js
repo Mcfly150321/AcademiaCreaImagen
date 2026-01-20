@@ -55,7 +55,7 @@ navLinks.forEach(link => {
         // Load data
         if (target === 'dashboard') updateDashboardStats();
         if (target === 'pagos') loadPayments();
-        if (target === 'bodega') loadAlerts();
+        if (target === 'bodega') { loadAlerts(); loadAllPackages(); }
         if (target === 'talleres') loadWorkshops();
     });
 });
@@ -625,7 +625,178 @@ async function assignPackageToStudent(wsId, studentId, pkgId) {
     }
 }
 
-// Package Management
+// --- GESTIÓN GLOBAL DE PAQUETES ---
+async function loadAllPackages() {
+    const list = document.getElementById('main-packages-list');
+    const selectWs = document.getElementById('main-pkg-workshop-id');
+    try {
+        // Cargar Talleres para el select
+        const resWs = await fetch(`${API_URL}/workshops/`);
+        const workshops = await resWs.json();
+        selectWs.innerHTML = workshops.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+
+        // Cargar todos los paquetes (de todos los talleres)
+        list.innerHTML = '<p>Cargando paquetes...</p>';
+        let allPackages = [];
+        for (const ws of workshops) {
+            const resPkg = await fetch(`${API_URL}/workshops/${ws.id}/packages/`);
+            const pkgs = await resPkg.json();
+            allPackages = allPackages.concat(pkgs.map(p => ({ ...p, workshop_name: ws.name })));
+        }
+
+        if (allPackages.length === 0) {
+            list.innerHTML = '<p>No hay paquetes creados todavía.</p>';
+            return;
+        }
+
+        list.innerHTML = allPackages.map(p => `
+            <div class="card" style="margin-bottom: 10px; border-left: 5px solid #6366f1;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <h4 style="margin: 0;">${p.name}</h4>
+                        <small style="color: #64748b;">Taller: ${p.workshop_name}</small><br>
+                        <p style="margin: 5px 0; font-size: 13px;">${p.description}</p>
+                        <div style="font-size: 11px; background: #f8fafc; padding: 5px; border-radius: 4px;">
+                            <strong>Productos:</strong> ${p.products?.length > 0 ? p.products.map(pr => `${pr.product_description} (x${pr.quantity})`).join(', ') : 'Ninguno'}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="editPackageMain(${p.id}, '${p.name}', '${p.description}', ${p.workshop_id}, ${JSON.stringify(p.products || []).replace(/"/g, '&quot;')})" class="btn-secondary" style="padding: 2px 8px;">Editar</button>
+                        <button onclick="deletePackageMain(${p.id})" class="btn-secondary" style="padding: 2px 8px; color: red;">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = '<p style="color:red;">Error al cargar paquetes.</p>';
+    }
+}
+
+// Logic for Main Package Section
+let mainDraftProducts = [];
+let mainSearchedProduct = null;
+
+document.getElementById('btn-main-search-prod').onclick = async () => {
+    const code = document.getElementById('main-pkg-prod-code').value;
+    if (!code) return;
+    try {
+        const res = await fetch(`${API_URL}/products/${code}`);
+        if (!res.ok) throw new Error("Producto no encontrado");
+        mainSearchedProduct = await res.json();
+        document.getElementById('main-pkg-prod-item-desc').textContent = `${mainSearchedProduct.description} (Costo: Q${mainSearchedProduct.cost})`;
+        document.getElementById('main-pkg-prod-item-form').style.display = 'block';
+    } catch (e) {
+        alert(e.message);
+        document.getElementById('main-pkg-prod-item-form').style.display = 'none';
+    }
+};
+
+document.getElementById('btn-main-add-prod').onclick = () => {
+    const qty = parseInt(document.getElementById('main-pkg-prod-item-qty').value);
+    if (!qty || qty <= 0 || !mainSearchedProduct) return;
+    
+    mainDraftProducts.push({
+        product_id: mainSearchedProduct.id,
+        quantity: qty,
+        product_description: mainSearchedProduct.description
+    });
+    
+    renderMainDraftProducts();
+    document.getElementById('main-pkg-prod-item-form').style.display = 'none';
+    document.getElementById('main-pkg-prod-code').value = '';
+    mainSearchedProduct = null;
+};
+
+function renderMainDraftProducts() {
+    const container = document.getElementById('main-pkg-prods-list');
+    container.innerHTML = mainDraftProducts.map((p, i) => `
+        <div style="font-size: 12px; display: flex; justify-content: space-between; background: #fff; padding: 5px 10px; border: 1px solid #e2e8f0; border-radius: 4px;">
+            <span>${p.product_description} <strong>x${p.quantity}</strong></span>
+            <button type="button" onclick="removeMainDraftProduct(${i})" style="color: red; border: none; background: none; cursor: pointer; font-weight: bold;">×</button>
+        </div>
+    `).join('');
+}
+
+function removeMainDraftProduct(index) {
+    mainDraftProducts.splice(index, 1);
+    renderMainDraftProducts();
+}
+
+document.getElementById('main-package-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const pkgId = document.getElementById('main-package-id').value;
+    const wsId = document.getElementById('main-pkg-workshop-id').value;
+    const data = {
+        name: document.getElementById('main-pkg-name').value,
+        description: document.getElementById('main-pkg-desc').value,
+        workshop_id: parseInt(wsId)
+    };
+
+    const method = pkgId ? 'PUT' : 'POST';
+    const url = pkgId ? `${API_URL}/packages/${pkgId}` : `${API_URL}/workshops/${wsId}/packages/`;
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error("Error al guardar el paquete");
+        const savedPkg = await response.json();
+        const pkgIdToUse = pkgId || savedPkg.id;
+
+        // Si es edición, idealmente borraríamos productos viejos primero o tendríamos un sync
+        // Por simplicidad en este MVP, agregamos los nuevos del draft que no tengan ID
+        for (const prod of mainDraftProducts) {
+            if (!prod.id) {
+                await fetch(`${API_URL}/packages/${pkgIdToUse}/products/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_id: prod.product_id, quantity: prod.quantity })
+                });
+            }
+        }
+
+        alert("Paquete guardado con éxito");
+        cancelMainPackageEdit();
+        loadAllPackages();
+    } catch (e) {
+        alert(e.message);
+    }
+};
+
+function editPackageMain(id, name, desc, wsId, products = []) {
+    document.getElementById('main-package-id').value = id;
+    document.getElementById('main-pkg-name').value = name;
+    document.getElementById('main-pkg-desc').value = desc;
+    document.getElementById('main-pkg-workshop-id').value = wsId;
+    document.getElementById('btn-main-cancel-pkg').style.display = 'inline-block';
+    mainDraftProducts = [...products];
+    renderMainDraftProducts();
+    // Scroll up to form
+    document.getElementById('paquetes').scrollTop = 0;
+}
+
+function cancelMainPackageEdit() {
+    document.getElementById('main-package-id').value = '';
+    document.getElementById('main-package-form').reset();
+    document.getElementById('btn-main-cancel-pkg').style.display = 'none';
+    mainDraftProducts = [];
+    renderMainDraftProducts();
+}
+
+document.getElementById('btn-main-cancel-pkg').onclick = cancelMainPackageEdit;
+
+async function deletePackageMain(id) {
+    if (!confirm("¿Eliminar este paquete por completo?")) return;
+    try {
+        await fetch(`${API_URL}/packages/${id}`, { method: 'DELETE' });
+        loadAllPackages();
+    } catch (e) { console.error(e); }
+}
+
+// Package Management (Legacy inside Modal - sync if needed or keep both)
 document.getElementById('modal-package-form').onsubmit = async (e) => {
     e.preventDefault();
     const pkgId = document.getElementById('modal-package-id').value;

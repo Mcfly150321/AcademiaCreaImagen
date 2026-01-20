@@ -197,6 +197,59 @@
                     <div id="inventory-alerts-container" class="alerts-list">
                         <!-- Alerts here -->
                     </div>
+
+                    <hr style="margin: 2rem 0;">
+                    
+                    <div class="package-management-in-bodega">
+                        <h2>Crear Paquete de Productos</h2>
+                        <form id="main-package-form">
+                            <input type="hidden" id="main-package-id">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Taller Asociado:</label>
+                                    <select id="main-pkg-workshop-id" required>
+                                        <!-- Dynamic -->
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Nombre del Paquete:</label>
+                                    <input type="text" id="main-pkg-name" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción/Detalles:</label>
+                                <textarea id="main-pkg-desc" rows="2"></textarea>
+                            </div>
+                            
+                            <div style="margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                                <label><strong>Contenido del Pack (Productos de Bodega):</strong></label>
+                                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                                    <input type="text" id="main-pkg-prod-code" placeholder="Código de producto...">
+                                    <button type="button" id="btn-main-search-prod" class="btn-secondary">Buscar</button>
+                                </div>
+                                <div id="main-pkg-prod-item-form" style="display: none; margin-top: 10px; background: #f8fafc; padding: 10px; border-radius: 5px; border: 1px dashed #cbd5e1;">
+                                    <p id="main-pkg-prod-item-desc" style="font-size: 13px; font-weight: bold;"></p>
+                                    <div style="display: flex; gap: 5px; align-items: center; margin-top: 5px;">
+                                        <input type="number" id="main-pkg-prod-item-qty" value="1" style="width: 80px;">
+                                        <button type="button" id="btn-main-add-prod" class="btn-primary" style="padding: 5px 15px;">Añadir</button>
+                                    </div>
+                                </div>
+                                <div id="main-pkg-prods-list" style="margin-top: 10px; display: grid; gap: 5px;">
+                                    <!-- List of products in draft -->
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <button type="submit" class="btn-primary">Guardar Paquete</button>
+                                <button type="button" id="btn-main-cancel-pkg" class="btn-secondary" style="display: none;">Cancelar</button>
+                            </div>
+                        </form>
+                        <hr>
+                        <h3>Paquetes Existentes</h3>
+                        <div id="main-packages-list" class="grid-list" style="margin-top: 20px;">
+                            <!-- Global list of packages -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -220,6 +273,8 @@
                         <!-- Workshops here -->
                     </div>
                 </div>
+            </section>
+
             </section>
         </main>
     </div>
