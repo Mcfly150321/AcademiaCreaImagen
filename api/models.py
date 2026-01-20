@@ -53,7 +53,12 @@ class Workshop(Base):
     description = Column(String)
 
     students = relationship("WorkshopStudent", back_populates="workshop", cascade="all, delete-orphan")
-    packages = relationship("Package", back_populates="workshop", cascade="all, delete-orphan")
+    packages = relationship("Package", secondary="workshop_packages", back_populates="workshops")
+
+class WorkshopPackage(Base):
+    __tablename__ = "workshop_packages"
+    workshop_id = Column(Integer, ForeignKey("workshops.id"), primary_key=True)
+    package_id = Column(Integer, ForeignKey("packages.id"), primary_key=True)
 
 class WorkshopStudent(Base):
     __tablename__ = "workshop_students"
@@ -75,9 +80,8 @@ class Package(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     description = Column(String)
-    workshop_id = Column(Integer, ForeignKey("workshops.id"))
 
-    workshop = relationship("Workshop", back_populates="packages")
+    workshops = relationship("Workshop", secondary="workshop_packages", back_populates="packages")
     products = relationship("PackageProduct", back_populates="package", cascade="all, delete-orphan")
 
 class PackageProduct(Base):

@@ -87,7 +87,6 @@ class WorkshopSchema(WorkshopBase):
 class PackageBase(BaseModel):
     name: str
     description: str
-    workshop_id: int
 
 class PackageCreate(PackageBase):
     pass

@@ -190,6 +190,21 @@ def get_stats(db: Session = Depends(get_db)):
 def get_inventory_alerts(db: Session = Depends(get_db)):
     return db.query(models.Product).filter(models.Product.units <= models.Product.alert_threshold).all()
 
+@router.post("/workshops/{workshop_id}/students/{student_id}")
+def add_student_to_workshop(workshop_id: int, student_id: str, db: Session = Depends(get_db)):
+    # Check if exists
+    exists = db.query(models.WorkshopStudent).filter(
+        models.WorkshopStudent.workshop_id == workshop_id,
+        models.WorkshopStudent.student_id == student_id
+    ).first()
+    if exists:
+        return {"status": "already_exists"}
+    
+    assoc = models.WorkshopStudent(workshop_id=workshop_id, student_id=student_id)
+    db.add(assoc)
+    db.commit()
+    return {"status": "success"}
+
 # Workshops and Packages
 @router.delete("/workshops/{workshop_id}/students/{student_id}")
 def remove_student_from_workshop(workshop_id: int, student_id: str, db: Session = Depends(get_db)):
@@ -240,14 +255,43 @@ def remove_product_from_package(package_id: int, product_id: int, db: Session = 
     db.commit()
     return {"status": "success"}
 
-@router.post("/workshops/{workshop_id}/packages/", response_model=schemas.PackageSchema)
-def create_package(workshop_id: int, package: schemas.PackageCreate, db: Session = Depends(get_db)):
+@router.post("/packages/", response_model=schemas.PackageSchema)
+def create_package(package: schemas.PackageCreate, db: Session = Depends(get_db)):
     db_package = models.Package(**package.dict())
-    db_package.workshop_id = workshop_id
     db.add(db_package)
     db.commit()
     db.refresh(db_package)
     return db_package
+
+@router.get("/packages/", response_model=List[schemas.PackageSchema])
+def read_all_packages(db: Session = Depends(get_db)):
+    return db.query(models.Package).all()
+
+@router.post("/workshops/{workshop_id}/packages/{package_id}")
+def link_package_to_workshop(workshop_id: int, package_id: int, db: Session = Depends(get_db)):
+    exists = db.query(models.WorkshopPackage).filter(
+        models.WorkshopPackage.workshop_id == workshop_id,
+        models.WorkshopPackage.package_id == package_id
+    ).first()
+    if exists:
+        return {"status": "already_linked"}
+    
+    link = models.WorkshopPackage(workshop_id=workshop_id, package_id=package_id)
+    db.add(link)
+    db.commit()
+    return {"status": "success"}
+
+@router.delete("/workshops/{workshop_id}/packages/{package_id}")
+def unlink_package_from_workshop(workshop_id: int, package_id: int, db: Session = Depends(get_db)):
+    link = db.query(models.WorkshopPackage).filter(
+        models.WorkshopPackage.workshop_id == workshop_id,
+        models.WorkshopPackage.package_id == package_id
+    ).first()
+    if not link:
+        raise HTTPException(status_code=404, detail="Link not found")
+    db.delete(link)
+    db.commit()
+    return {"status": "success"}
 
 @router.post("/workshops/{workshop_id}/generate-diplomas/")
 def generate_diplomas(workshop_id: int, db: Session = Depends(get_db)):
@@ -264,7 +308,10 @@ def generate_diplomas(workshop_id: int, db: Session = Depends(get_db)):
 
 @router.get("/workshops/{workshop_id}/packages/", response_model=list[schemas.PackageSchema])
 def get_workshop_packages(workshop_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Package).filter(models.Package.workshop_id == workshop_id).all()
+    ws = db.query(models.Workshop).get(workshop_id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workshop not found")
+    return ws.packages
 
 @router.put("/packages/{package_id}", response_model=schemas.PackageSchema)
 def update_package(package_id: int, package_data: schemas.PackageCreate, db: Session = Depends(get_db)):

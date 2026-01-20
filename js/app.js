@@ -501,6 +501,7 @@ async function openWorkshopDetail(wsId) {
         }
 
         await loadModalPackages();
+        await loadGlobalPackagesForSelect();
         await loadModalStudents();
         await fillStudentSelect();
     } catch (e) {
@@ -626,23 +627,12 @@ async function assignPackageToStudent(wsId, studentId, pkgId) {
 }
 
 // --- GESTIÓN GLOBAL DE PAQUETES ---
+// --- GESTIÓN GLOBAL DE PAQUETES ---
 async function loadAllPackages() {
     const list = document.getElementById('main-packages-list');
-    const selectWs = document.getElementById('main-pkg-workshop-id');
     try {
-        // Cargar Talleres para el select
-        const resWs = await fetch(`${API_URL}/workshops/`);
-        const workshops = await resWs.json();
-        selectWs.innerHTML = workshops.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-
-        // Cargar todos los paquetes (de todos los talleres)
-        list.innerHTML = '<p>Cargando paquetes...</p>';
-        let allPackages = [];
-        for (const ws of workshops) {
-            const resPkg = await fetch(`${API_URL}/workshops/${ws.id}/packages/`);
-            const pkgs = await resPkg.json();
-            allPackages = allPackages.concat(pkgs.map(p => ({ ...p, workshop_name: ws.name })));
-        }
+        const res = await fetch(`${API_URL}/packages/`);
+        const allPackages = await res.json();
 
         if (allPackages.length === 0) {
             list.innerHTML = '<p>No hay paquetes creados todavía.</p>';
@@ -654,14 +644,13 @@ async function loadAllPackages() {
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <h4 style="margin: 0;">${p.name}</h4>
-                        <small style="color: #64748b;">Taller: ${p.workshop_name}</small><br>
                         <p style="margin: 5px 0; font-size: 13px;">${p.description}</p>
                         <div style="font-size: 11px; background: #f8fafc; padding: 5px; border-radius: 4px;">
                             <strong>Productos:</strong> ${p.products?.length > 0 ? p.products.map(pr => `${pr.product_description} (x${pr.quantity})`).join(', ') : 'Ninguno'}
                         </div>
                     </div>
                     <div style="display: flex; gap: 5px;">
-                        <button onclick="editPackageMain(${p.id}, '${p.name}', '${p.description}', ${p.workshop_id}, ${JSON.stringify(p.products || []).replace(/"/g, '&quot;')})" class="btn-secondary" style="padding: 2px 8px;">Editar</button>
+                        <button onclick="editPackageMain(${p.id}, '${p.name}', '${p.description}', ${JSON.stringify(p.products || []).replace(/"/g, '&quot;')})" class="btn-secondary" style="padding: 2px 8px;">Editar</button>
                         <button onclick="deletePackageMain(${p.id})" class="btn-secondary" style="padding: 2px 8px; color: red;">Eliminar</button>
                     </div>
                 </div>
@@ -673,7 +662,7 @@ async function loadAllPackages() {
     }
 }
 
-// Logic for Main Package Section
+// Logic for Main Package Section (Bodega)
 let mainDraftProducts = [];
 let mainSearchedProduct = null;
 
@@ -726,15 +715,13 @@ function removeMainDraftProduct(index) {
 document.getElementById('main-package-form').onsubmit = async (e) => {
     e.preventDefault();
     const pkgId = document.getElementById('main-package-id').value;
-    const wsId = document.getElementById('main-pkg-workshop-id').value;
     const data = {
         name: document.getElementById('main-pkg-name').value,
-        description: document.getElementById('main-pkg-desc').value,
-        workshop_id: parseInt(wsId)
+        description: document.getElementById('main-pkg-desc').value
     };
 
     const method = pkgId ? 'PUT' : 'POST';
-    const url = pkgId ? `${API_URL}/packages/${pkgId}` : `${API_URL}/workshops/${wsId}/packages/`;
+    const url = pkgId ? `${API_URL}/packages/${pkgId}` : `${API_URL}/packages/`;
 
     try {
         const response = await fetch(url, {
@@ -746,8 +733,6 @@ document.getElementById('main-package-form').onsubmit = async (e) => {
         const savedPkg = await response.json();
         const pkgIdToUse = pkgId || savedPkg.id;
 
-        // Si es edición, idealmente borraríamos productos viejos primero o tendríamos un sync
-        // Por simplicidad en este MVP, agregamos los nuevos del draft que no tengan ID
         for (const prod of mainDraftProducts) {
             if (!prod.id) {
                 await fetch(`${API_URL}/packages/${pkgIdToUse}/products/`, {
@@ -766,16 +751,13 @@ document.getElementById('main-package-form').onsubmit = async (e) => {
     }
 };
 
-function editPackageMain(id, name, desc, wsId, products = []) {
+function editPackageMain(id, name, desc, products = []) {
     document.getElementById('main-package-id').value = id;
     document.getElementById('main-pkg-name').value = name;
     document.getElementById('main-pkg-desc').value = desc;
-    document.getElementById('main-pkg-workshop-id').value = wsId;
     document.getElementById('btn-main-cancel-pkg').style.display = 'inline-block';
     mainDraftProducts = [...products];
     renderMainDraftProducts();
-    // Scroll up to form
-    document.getElementById('paquetes').scrollTop = 0;
 }
 
 function cancelMainPackageEdit() {
@@ -796,52 +778,27 @@ async function deletePackageMain(id) {
     } catch (e) { console.error(e); }
 }
 
-// Package Management (Legacy inside Modal - sync if needed or keep both)
-document.getElementById('modal-package-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const pkgId = document.getElementById('modal-package-id').value;
-    const data = {
-        name: document.getElementById('modal-pkg-name').value,
-        description: document.getElementById('modal-pkg-desc').value,
-        workshop_id: currentWsId
-    };
+// --- LOGICA DE TALLERES + PAQUETES ---
 
-    const method = pkgId ? 'PUT' : 'POST';
-    const url = pkgId ? `${API_URL}/packages/${pkgId}` : `${API_URL}/workshops/${currentWsId}/packages/`;
-
+async function loadGlobalPackagesForSelect() {
     try {
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!response.ok) throw new Error("Error saving package");
-        const savedPackage = await response.json();
-        const pkgIdToUse = pkgId || savedPackage.id;
+        const res = await fetch(`${API_URL}/packages/`);
+        const pkgs = await res.json();
+        const select = document.getElementById('modal-link-package-select');
+        select.innerHTML = pkgs.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    } catch (e) { console.error(e); }
+}
 
-        // Sync products (Simple version: Add all current drafts)
-        // If editing, we might want to clear old ones, but for now let's just add new ones or assume full sync
-        // A better way would be a single endpoint, but let's use what we have.
-        if (method === 'POST' || currentDraftProducts.length > 0) {
-            // For simplicity, we add new ones. 
-            // If the user wants a full sync, we'd need to clear old ones first.
-            for (const prod of currentDraftProducts) {
-                if (!prod.id) {
-                    await fetch(`${API_URL}/packages/${pkgIdToUse}/products/`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ product_id: prod.product_id, quantity: prod.quantity })
-                    });
-                }
-            }
+document.getElementById('btn-link-package-to-ws').onclick = async () => {
+    const pkgId = document.getElementById('modal-link-package-select').value;
+    if (!pkgId) return;
+    try {
+        const res = await fetch(`${API_URL}/workshops/${currentWsId}/packages/${pkgId}`, { method: 'POST' });
+        if (res.ok) {
+            loadModalPackages();
+            loadModalStudents(); // Refresh to update student package dropdown
         }
-        
-        cancelPackageEdit();
-        loadModalPackages();
-    } catch (e) {
-        console.error("Save package error:", e);
-        alert("Error al guardar paquete");
-    }
+    } catch (e) { console.error(e); }
 };
 
 async function loadModalPackages() {
@@ -852,25 +809,33 @@ async function loadModalPackages() {
         const container = document.getElementById('modal-ws-packages-list');
         
         if (currentWorkshopPackages.length === 0) {
-            container.innerHTML = '<p>No hay paquetes para este taller</p>';
+            container.innerHTML = '<p style="font-size: 13px;">No hay paquetes vinculados a este taller.</p>';
             return;
         }
 
         container.innerHTML = currentWorkshopPackages.map(p => `
-            <div class="alert-item" style="color: black; background: #f1f5f9; border: 1px solid #cbd5e1; margin-bottom: 0.5rem;">
-                <div>
-                    <strong>${p.name}</strong> (${p.products?.length || 0} prod)<br>
+            <div class="alert-item" style="color: black; background: #f1f5f9; border: 1px solid #cbd5e1; margin-bottom: 0.5rem; padding: 8px;">
+                <div style="font-size: 13px;">
+                    <strong>${p.name}</strong><br>
                     <small>${p.description}</small>
                 </div>
                 <div>
-                    <button onclick="editPackage(${p.id}, '${p.name}', '${p.description}', ${JSON.stringify(p.products || []).replace(/"/g, '&quot;')})" class="btn-secondary" style="padding: 2px 8px;">Edit</button>
-                    <button onclick="deletePackage(${p.id})" class="btn-secondary" style="padding: 2px 8px; color: red;">X</button>
+                    <button onclick="unlinkPackageFromWorkshop(${p.id})" class="btn-secondary" style="padding: 2px 8px; color: red; font-size: 11px;">Quitar</button>
                 </div>
             </div>
         `).join('');
     } catch (e) {
         console.error("Load packages error:", e);
     }
+}
+
+async function unlinkPackageFromWorkshop(pkgId) {
+    if (!confirm("¿Desvincular este paquete del taller?")) return;
+    try {
+        await fetch(`${API_URL}/workshops/${currentWsId}/packages/${pkgId}`, { method: 'DELETE' });
+        loadModalPackages();
+        loadModalStudents();
+    } catch (e) { console.error(e); }
 }
 
 // Logic for Package Products (Drafts)
