@@ -4,6 +4,7 @@ from typing import List, Optional
 class PaymentBase(BaseModel):
     month: int
     year: int
+    payment_type: str = "mensualidad"
     is_paid: bool = False
 
 class PaymentCreate(PaymentBase):

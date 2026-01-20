@@ -151,7 +151,6 @@ def get_stats(db: Session = Depends(get_db)):
 
     for s in students:
         if not s.registration_date:
-            # Si no tiene fecha, asumimos el mes actual para que al menos cuente si debe este mes
             reg_year, reg_month = current_year, current_month
         else:
             try:
@@ -159,16 +158,24 @@ def get_stats(db: Session = Depends(get_db)):
             except:
                 reg_year, reg_month = current_year, current_month
         
-        # Calculate total months since registration
+        # 1. Mensualidades pendientes
         months_since_reg = (current_year - reg_year) * 12 + (current_month - reg_month) + 1
-        
-        # Count paid months for this student
-        paid_count = db.query(models.Payment).filter(
+        paid_months = db.query(models.Payment).filter(
             models.Payment.student_id == s.carnet,
-            models.Payment.is_paid == True
+            models.Payment.payment_type == "mensualidad"
         ).count()
         
-        total_pending += max(0, months_since_reg - paid_count)
+        total_pending += max(0, months_since_reg - paid_months)
+
+        # 2. Pagos especiales pendientes (Inscripción y Gastos Varios)
+        # Puedes agregar más aquí si lo deseas
+        for ptype in ["inscripcion", "gastos_varios"]:
+            exists = db.query(models.Payment).filter(
+                models.Payment.student_id == s.carnet,
+                models.Payment.payment_type == ptype
+            ).first()
+            if not exists:
+                total_pending += 1
     
     return {
         "students": student_count,
