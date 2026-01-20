@@ -20,6 +20,8 @@ const pageTitle = document.getElementById('page-title');
 const wsModal = document.getElementById('workshop-modal');
 const closeBtn = document.querySelector('.close-btn');
 let currentWsId = null;
+let currentWorkshopPackages = []; // Cache for packages
+let currentDraftProducts = []; // Products for the package currently being edited
 
 // Global Server Time (synchronized via stats)
 let serverYear = new Date().getFullYear();
@@ -181,7 +183,11 @@ async function loadPayments(plan = 'todos') {
                     <strong>${student.names} ${student.lastnames}</strong><br>
                     <small style="color: #64748b;">Carnet: ${student.carnet}</small>
                     <div style="margin-top: 5px;">
-                        <button class="btn-secondary" style="color: red; border-color: #fca5a5; padding: 2px 8px; font-size: 10px;" onclick="deleteStudent('${student.carnet}')">Eliminar Alumna</button>
+                        <button class="btn-secondary btn-delete-student" 
+                                style="color: red; border-color: #fca5a5; padding: 2px 8px; font-size: 10px;" 
+                                data-carnet="${student.carnet}">
+                            Eliminar Alumna
+                        </button>
                     </div>
                 </td>
                 <td>
@@ -224,6 +230,14 @@ async function loadPayments(plan = 'todos') {
         tbody.innerHTML = '<tr><td colspan="2" style="color: red;">Error al cargar datos</td></tr>';
     }
 }
+
+// Event Delegation for Payments Table
+document.getElementById('payments-table-body').addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-delete-student')) {
+        const carnet = e.target.getAttribute('data-carnet');
+        deleteStudent(carnet);
+    }
+});
 
 async function checkAllPayments(studentId) {
     try {
@@ -282,7 +296,7 @@ async function deleteStudent(carnet) {
         const response = await fetch(`${API_URL}/students/${carnet}`, { method: 'DELETE' });
         if (response.ok) {
             alert("Alumna eliminada");
-            loadStudentsByPlan(document.getElementById('filter-plan').value);
+            loadPayments(document.getElementById('filter-plan').value);
             updateDashboardStats();
         } else {
             alert("Error al eliminar");
@@ -486,8 +500,8 @@ async function openWorkshopDetail(wsId) {
             document.getElementById('modal-ws-desc').textContent = ws.description;
         }
 
-        await loadModalStudents();
         await loadModalPackages();
+        await loadModalStudents();
         await fillStudentSelect();
     } catch (e) {
         console.error("Error al abrir detalle:", e);
@@ -545,18 +559,30 @@ async function loadModalStudents() {
                     <tr>
                         <th>Alumna</th>
                         <th>Taller</th>
-                        <th>Pack</th>
+                        <th>Pack (Selección)</th>
+                        <th>Cobro</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${students.map(s => `
                         <tr>
-                            <td>${s.names}</td>
+                            <td>
+                                ${s.names}<br>
+                                <button class="btn-secondary" style="padding: 2px 5px; font-size: 10px; color: red;" onclick="removeStudentFromWorkshop(${currentWsId}, '${s.student_id}')">Quitar</button>
+                            </td>
                             <td>
                                 <label class="switch">
                                     <input type="checkbox" ${s.workshop_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'workshop')">
                                     <span class="slider"></span>
                                 </label>
+                            </td>
+                            <td>
+                                <select onchange="assignPackageToStudent(${currentWsId}, '${s.student_id}', this.value)" style="font-size: 12px; padding: 2px;">
+                                    <option value="">Ninguno</option>
+                                    ${currentWorkshopPackages.map(p => `
+                                        <option value="${p.id}" ${s.package_id == p.id ? 'selected' : ''}>${p.name}</option>
+                                    `).join('')}
+                                </select>
                             </td>
                             <td>
                                 <label class="switch">
@@ -571,6 +597,31 @@ async function loadModalStudents() {
         `;
     } catch (e) {
         console.error("Load modal students error:", e);
+    }
+}
+
+async function removeStudentFromWorkshop(wsId, studentId) {
+    if (!confirm("¿Quitar alumna de este taller?")) return;
+    try {
+        const res = await fetch(`${API_URL}/workshops/${wsId}/students/${studentId}`, { method: 'DELETE' });
+        if (res.ok) {
+            loadModalStudents();
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function assignPackageToStudent(wsId, studentId, pkgId) {
+    try {
+        const url = `${API_URL}/workshop-students/assign-package/?workshop_id=${wsId}&student_id=${studentId}&package_id=${pkgId || ''}`;
+        const res = await fetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error("Error assigning package");
+        // Optativo: recargar para que el checkbox de "package_paid" tenga sentido o para confirmar
+        // loadModalStudents(); 
+    } catch (e) {
+        console.error(e);
+        alert("Error al asignar paquete");
     }
 }
 
@@ -594,6 +645,25 @@ document.getElementById('modal-package-form').onsubmit = async (e) => {
             body: JSON.stringify(data)
         });
         if (!response.ok) throw new Error("Error saving package");
+        const savedPackage = await response.json();
+        const pkgIdToUse = pkgId || savedPackage.id;
+
+        // Sync products (Simple version: Add all current drafts)
+        // If editing, we might want to clear old ones, but for now let's just add new ones or assume full sync
+        // A better way would be a single endpoint, but let's use what we have.
+        if (method === 'POST' || currentDraftProducts.length > 0) {
+            // For simplicity, we add new ones. 
+            // If the user wants a full sync, we'd need to clear old ones first.
+            for (const prod of currentDraftProducts) {
+                if (!prod.id) {
+                    await fetch(`${API_URL}/packages/${pkgIdToUse}/products/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ product_id: prod.product_id, quantity: prod.quantity })
+                    });
+                }
+            }
+        }
         
         cancelPackageEdit();
         loadModalPackages();
@@ -607,22 +677,22 @@ async function loadModalPackages() {
     try {
         const res = await fetch(`${API_URL}/workshops/${currentWsId}/packages/`);
         if (!res.ok) throw new Error("Error loading packages");
-        const pkgs = await res.json();
+        currentWorkshopPackages = await res.json();
         const container = document.getElementById('modal-ws-packages-list');
         
-        if (pkgs.length === 0) {
+        if (currentWorkshopPackages.length === 0) {
             container.innerHTML = '<p>No hay paquetes para este taller</p>';
             return;
         }
 
-        container.innerHTML = pkgs.map(p => `
+        container.innerHTML = currentWorkshopPackages.map(p => `
             <div class="alert-item" style="color: black; background: #f1f5f9; border: 1px solid #cbd5e1; margin-bottom: 0.5rem;">
                 <div>
-                    <strong>${p.name}</strong><br>
+                    <strong>${p.name}</strong> (${p.products?.length || 0} prod)<br>
                     <small>${p.description}</small>
                 </div>
                 <div>
-                    <button onclick="editPackage(${p.id}, '${p.name}', '${p.description}')" class="btn-secondary" style="padding: 2px 8px;">Edit</button>
+                    <button onclick="editPackage(${p.id}, '${p.name}', '${p.description}', ${JSON.stringify(p.products || []).replace(/"/g, '&quot;')})" class="btn-secondary" style="padding: 2px 8px;">Edit</button>
                     <button onclick="deletePackage(${p.id})" class="btn-secondary" style="padding: 2px 8px; color: red;">X</button>
                 </div>
             </div>
@@ -632,17 +702,74 @@ async function loadModalPackages() {
     }
 }
 
-function editPackage(id, name, desc) {
+// Logic for Package Products (Drafts)
+let searchedProduct = null;
+
+document.getElementById('btn-search-prod-pack').onclick = async () => {
+    const code = document.getElementById('modal-pkg-prod-code').value;
+    if (!code) return;
+    try {
+        const res = await fetch(`${API_URL}/products/${code}`);
+        if (!res.ok) throw new Error("Producto no encontrado");
+        searchedProduct = await res.json();
+        
+        document.getElementById('modal-pkg-prod-item-desc').textContent = `${searchedProduct.description} (Q${searchedProduct.cost})`;
+        document.getElementById('modal-pkg-prod-item-form').style.display = 'block';
+    } catch (e) {
+        alert(e.message);
+        document.getElementById('modal-pkg-prod-item-form').style.display = 'none';
+    }
+};
+
+document.getElementById('btn-add-prod-to-pack').onclick = () => {
+    const qty = parseInt(document.getElementById('modal-pkg-prod-item-qty').value);
+    if (!qty || qty <= 0 || !searchedProduct) return;
+    
+    currentDraftProducts.push({
+        product_id: searchedProduct.id,
+        quantity: qty,
+        product_description: searchedProduct.description
+    });
+    
+    renderDraftProducts();
+    
+    // Reset search
+    document.getElementById('modal-pkg-prod-code').value = '';
+    document.getElementById('modal-pkg-prod-item-form').style.display = 'none';
+    searchedProduct = null;
+};
+
+function renderDraftProducts() {
+    const container = document.getElementById('modal-pkg-prods-list');
+    container.innerHTML = currentDraftProducts.map((p, i) => `
+        <div style="font-size: 11px; display: flex; justify-content: space-between; background: #fff; padding: 2px 5px; margin-bottom: 2px; border: 1px solid #e2e8f0;">
+            <span>${p.product_description} x ${p.quantity}</span>
+            <button type="button" onclick="removeDraftProduct(${i})" style="color: red; border: none; background: none; cursor: pointer;">x</button>
+        </div>
+    `).join('');
+}
+
+function removeDraftProduct(index) {
+    currentDraftProducts.splice(index, 1);
+    renderDraftProducts();
+}
+
+function editPackage(id, name, desc, products = []) {
     document.getElementById('modal-package-id').value = id;
     document.getElementById('modal-pkg-name').value = name;
     document.getElementById('modal-pkg-desc').value = desc;
     document.getElementById('btn-cancel-edit-pkg').style.display = 'inline-block';
+    
+    currentDraftProducts = [...products];
+    renderDraftProducts();
 }
 
 function cancelPackageEdit() {
     document.getElementById('modal-package-id').value = '';
     document.getElementById('modal-package-form').reset();
     document.getElementById('btn-cancel-edit-pkg').style.display = 'none';
+    currentDraftProducts = [];
+    renderDraftProducts();
 }
 
 document.getElementById('btn-cancel-edit-pkg').onclick = cancelPackageEdit;

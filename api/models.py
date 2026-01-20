@@ -63,9 +63,11 @@ class WorkshopStudent(Base):
     student_id = Column(String, ForeignKey("students.carnet"))
     package_paid = Column(Boolean, default=False)
     workshop_paid = Column(Boolean, default=False)
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
 
     workshop = relationship("Workshop", back_populates="students")
     student = relationship("Student", back_populates="workshops")
+    package = relationship("Package")
 
 class Package(Base):
     __tablename__ = "packages"

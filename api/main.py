@@ -190,19 +190,23 @@ def get_inventory_alerts(db: Session = Depends(get_db)):
     return db.query(models.Product).filter(models.Product.units <= models.Product.alert_threshold).all()
 
 # Workshops and Packages
-@router.post("/workshops/{workshop_id}/students/{student_id}")
-def add_student_to_workshop(workshop_id: int, student_id: str, db: Session = Depends(get_db)):
-    assoc = models.WorkshopStudent(workshop_id=workshop_id, student_id=student_id)
-    db.add(assoc)
+@router.delete("/workshops/{workshop_id}/students/{student_id}")
+def remove_student_from_workshop(workshop_id: int, student_id: str, db: Session = Depends(get_db)):
+    assoc = db.query(models.WorkshopStudent).filter(
+        models.WorkshopStudent.workshop_id == workshop_id,
+        models.WorkshopStudent.student_id == student_id
+    ).first()
+    if not assoc:
+        raise HTTPException(status_code=404, detail="Student not found in workshop")
+    db.delete(assoc)
     db.commit()
     return {"status": "success"}
 
-@router.get("/workshops/{workshop_id}/students/", response_model=list)
+@router.get("/workshops/{workshop_id}/students/", response_model=list[schemas.WorkshopStudentSchema])
 def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
     students = db.query(models.WorkshopStudent).filter(models.WorkshopStudent.workshop_id == workshop_id).all()
     result = []
     for s in students:
-        # Cambio aquí:
         student_data = db.query(models.Student).filter(models.Student.carnet == s.student_id).first()
         if student_data:
             result.append({
@@ -210,9 +214,30 @@ def get_workshop_students(workshop_id: int, db: Session = Depends(get_db)):
                 "names": student_data.names,
                 "lastnames": student_data.lastnames,
                 "package_paid": s.package_paid,
-                "workshop_paid": s.workshop_paid
+                "workshop_paid": s.workshop_paid,
+                "package_id": s.package_id
             })
     return result
+
+@router.post("/packages/{package_id}/products/")
+def add_product_to_package(package_id: int, item: schemas.PackageProductCreate, db: Session = Depends(get_db)):
+    db_item = models.PackageProduct(**item.dict(), package_id=package_id)
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@router.delete("/packages/{package_id}/products/{product_id}")
+def remove_product_from_package(package_id: int, product_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.PackageProduct).filter(
+        models.PackageProduct.package_id == package_id,
+        models.PackageProduct.product_id == product_id
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Product not found in package")
+    db.delete(item)
+    db.commit()
+    return {"status": "success"}
 
 @router.post("/workshops/{workshop_id}/packages/", response_model=schemas.PackageSchema)
 def create_package(workshop_id: int, package: schemas.PackageCreate, db: Session = Depends(get_db)):
@@ -275,8 +300,26 @@ def toggle_workshop_payment(workshop_id: int, student_id: str, payment_type: str
         assoc.package_paid = not assoc.package_paid
     elif payment_type == "workshop":
         assoc.workshop_paid = not assoc.workshop_paid
+    elif payment_type == "package_id":
+        # En este caso 'student_id' (que es un query param) no se usa para el id del pack,
+        # pero podemos pasar el id del pack en otro parametro o reutilizar.
+        # Mejor hagamos un endpoint separado para asignar paquete.
+        pass
     
     db.commit()
     return {"status": "success", "package_paid": assoc.package_paid, "workshop_paid": assoc.workshop_paid}
+
+@router.post("/workshop-students/assign-package/")
+def assign_package_to_student(workshop_id: int, student_id: str, package_id: Optional[int] = None, db: Session = Depends(get_db)):
+    assoc = db.query(models.WorkshopStudent).filter(
+        models.WorkshopStudent.workshop_id == workshop_id,
+        models.WorkshopStudent.student_id == student_id
+    ).first()
+    if not assoc:
+        raise HTTPException(status_code=404, detail="Student not found in workshop")
+    
+    assoc.package_id = package_id
+    db.commit()
+    return {"status": "success"}
 
 app.include_router(router)

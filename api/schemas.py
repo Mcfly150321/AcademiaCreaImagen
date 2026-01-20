@@ -57,6 +57,20 @@ class ProductSchema(ProductBase):
     class Config:
         from_attributes = True
 
+class PackageProductBase(BaseModel):
+    product_id: int
+    quantity: int
+
+class PackageProductCreate(PackageProductBase):
+    pass
+
+class PackageProductSchema(PackageProductBase):
+    id: int
+    product_description: Optional[str] = None # Helper for UI
+
+    class Config:
+        from_attributes = True
+
 class WorkshopBase(BaseModel):
     name: str
     description: str
@@ -80,6 +94,18 @@ class PackageCreate(PackageBase):
 
 class PackageSchema(PackageBase):
     id: int
+    products: List[PackageProductSchema] = []
+
+    class Config:
+        from_attributes = True
+
+class WorkshopStudentSchema(BaseModel):
+    student_id: str
+    names: str
+    lastnames: str
+    workshop_paid: bool
+    package_paid: bool
+    package_id: Optional[int] = None
 
     class Config:
         from_attributes = True
