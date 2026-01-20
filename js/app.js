@@ -162,7 +162,7 @@ regForm.addEventListener('submit', async (e) => {
 
 // Payments Logic
 async function loadPayments(plan = 'todos') {
-    const tbody = document.querySelector('#payments-table tbody');
+    const tbody = document.getElementById('payments-table-body');
     try {
         const response = await fetch(`${API_URL}/students/${plan}`);
         if (!response.ok) throw new Error("No se pudierón cargar las alumnas");
