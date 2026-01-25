@@ -344,6 +344,68 @@ productForm.addEventListener('submit', async (e) => {
     }
 });
 
+// --- NUEVA FUNCIÓN DE BÚSQUEDA FLEXIBLE (FUZZY SEARCH) ---
+async function searchInventory() {
+    const searchTerm = document.getElementById('barcode-scan').value.trim().toLowerCase();
+    const list = document.getElementById('main-products-list');
+
+    // Si el campo está vacío, cargamos todo el inventario normalmente
+    if (!searchTerm) {
+        loadAllproducts();
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/products/`);
+        const allProducts = await response.json();
+
+        // Aplicamos el "colador" (filtro inteligente)
+        const filterResults = allProducts.filter(p => {
+            const nameMatch = String(p.description).toLowerCase().includes(searchTerm);
+            const codeMatch = String(p.code).toLowerCase().includes(searchTerm);
+            return nameMatch || codeMatch;
+        });
+
+        // Ordenamos alfabéticamente los resultados
+        const sortedResults = filterResults.sort((a, b) => a.description.localeCompare(b.description));
+
+        if (sortedResults.length === 0) {
+            list.innerHTML = `<p style="padding: 20px; color: #64748b;">No se encontraron coincidencias para "${searchTerm}"</p>`;
+            return;
+        }
+
+        // Pintamos el HTML (usando exactamente el mismo estilo que loadAllproducts)
+        list.innerHTML = sortedResults.map(p => `
+            <div class="card" style="margin-bottom: 10px; border-left: 5px solid #6366f1;">
+                <div class="card-body">
+                    <p class="card-text">Nombre: ${p.description}</p>
+                    <p class="card-text">Costo: ${p.cost}</p>
+                    <p class="card-text">Unidades: ${p.units}</p>
+                    <p class="card-text">Código: ${p.code}</p>
+                    <div class="card-footer">
+                        <button type="button" class="btn-primary" style="padding: 5px 15px;" onclick="editProduct(${p.id})">Editar</button>
+                        <button type="button" class="btn-secondary" style="padding: 5px 15px; color: red;" onclick="deleteProduct(${p.id})">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error("Error en búsqueda:", e);
+        list.innerHTML = '<p style="color: red;">Error al procesar la búsqueda.</p>';
+    }
+}
+
+// Vinculamos el botón de búsqueda
+document.getElementById('search-product').onclick = searchInventory;
+
+// Permitir buscar al presionar "Enter"
+document.getElementById('barcode-scan').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        searchInventory();
+    }
+});
+
 async function loadAlerts() {
     const container = document.getElementById('inventory-alerts-container');
     try {
