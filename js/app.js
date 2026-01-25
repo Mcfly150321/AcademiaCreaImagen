@@ -351,11 +351,14 @@ async function loadAlerts() {
         if (!response.ok) throw new Error("Error fetching alerts");
         const alerts = await response.json();
         
-        container.innerHTML = '<h3>Alertas de Stock Bajo</h3>';
+        container.innerHTML = ''; // <--- IMPORTANTE: Esto limpia el contenedor antes de poner las nuevas
+
+        // <--- AGREGAR ESTO: Para que el usuario sepa que no hay problemas
         if (alerts.length === 0) {
-            container.innerHTML += '<p>No hay alertas de stock</p>';
+            container.innerHTML = '<p style="color: green; font-size: 13px;">✅ Todo el stock está al día.</p>';
             return;
         }
+
         alerts.forEach(prod => {
             const div = document.createElement('div');
             div.className = 'alert-item';
@@ -367,7 +370,7 @@ async function loadAlerts() {
         });
     } catch (e) {
         console.error("Error alerts:", e);
-        container.innerHTML = '<h3>Error al cargar alertas</h3>';
+        container.innerHTML = '<p style="color: red">Error al cargar alertas</p>';
     }
 }
 
