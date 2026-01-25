@@ -29,6 +29,9 @@
                 <a href="#" class="nav-link" data-target="bodega">
                     <i class="fas fa-warehouse"></i> Bodega
                 </a>
+                 <a href="#" class="nav-link" data-target="paquetes">
+                    <i class="fas fa-boxes"></i> Paquetes
+                </a>
                 <a href="#" class="nav-link" data-target="talleres">
                     <i class="fas fa-chalkboard-teacher"></i> Talleres
                 </a>
@@ -194,12 +197,23 @@
                         </div>
                         <button type="submit" class="btn-primary">Guardar Producto</button>
                     </form>
+                    <h3>Productos Existentes</h3>
+                        <div id="main-products-list" class="grid-list" style="margin-top: 20px;">
+                            <!-- Global list of products -->
+                        </div>
                     <div id="inventory-alerts-container" class="alerts-list">
                         <!-- Alerts here -->
                     </div>
 
                     <hr style="margin: 2rem 0;">
-                    
+                </div>
+            </section>
+
+
+
+            <!-- Paquetes Section -->
+            <section id="paquetes" class="content-section">
+                <div class="card">
                     <div class="package-management-in-bodega">
                         <h2>Crear Paquete de Productos</h2>
                         <form id="main-package-form">

@@ -55,7 +55,8 @@ navLinks.forEach(link => {
         // Load data
         if (target === 'dashboard') updateDashboardStats();
         if (target === 'pagos') loadPayments();
-        if (target === 'bodega') { loadAlerts(); loadAllPackages(); }
+        if (target === 'bodega') { loadAlerts(); loadAllproducts(); }
+        if (target === 'paquetes') { loadAllPackages(); } // Ahora cargan aquí
         if (target === 'talleres') loadWorkshops();
     });
 });
@@ -626,7 +627,37 @@ async function assignPackageToStudent(wsId, studentId, pkgId) {
     }
 }
 
-// --- GESTIÓN GLOBAL DE PAQUETES ---
+// --- GESTIÓN GLOBAL DE Productos ---
+async function loadAllproducts(){
+
+    const list = document.getElementById('main-products-list');
+    try {
+        const res = await fetch(`${API_URL}/products/`);
+        const allProducts = await res.json();
+
+        if (allProducts.length === 0) {
+            list.innerHTML = '<p>No hay productos creados todavía.</p>';
+            return;
+        }
+
+        list.innerHTML = allProducts.map(p => `
+            <div class="card" style="margin-bottom: 10px; border-left: 5px solid #6366f1;">
+                <div class="card-body">
+                    <p class="card-text">Nombre: ${p.description}</p>
+                    <p class="card-text">Costo: ${p.cost}</p>
+                    <p class="card-text">Unidades: ${p.units}</p>
+                    <p class="card-text">Código: ${p.code}</p>
+                    <div class="card-footer">
+                        <button type="button" class="btn btn-primary" onclick="editProduct(${p.id})">Editar</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteProduct(${p.id})">Eliminar</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error("Load products error:", e);
+    }
+}
 // --- GESTIÓN GLOBAL DE PAQUETES ---
 async function loadAllPackages() {
     const list = document.getElementById('main-packages-list');
