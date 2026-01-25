@@ -332,6 +332,7 @@ productForm.addEventListener('submit', async (e) => {
             alert("Producto guardado");
             productForm.reset();
             loadAlerts();
+            loadAllproducts();
             updateDashboardStats();
         } else {
             const err = await response.json();
@@ -639,8 +640,8 @@ async function loadAllproducts(){
             list.innerHTML = '<p>No hay productos creados todavía.</p>';
             return;
         }
-
-        list.innerHTML = allProducts.map(p => `
+        const sortedProducts = allProducts.sort((a, b) => a.description.localeCompare(b.description));
+        list.innerHTML = sortedProducts.map(p => `
             <div class="card" style="margin-bottom: 10px; border-left: 5px solid #6366f1;">
                 <div class="card-body">
                     <p class="card-text">Nombre: ${p.description}</p>
