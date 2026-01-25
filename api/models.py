@@ -94,3 +94,7 @@ class PackageProduct(Base):
 
     package = relationship("Package", back_populates="products")
     product = relationship("Product")
+
+    @property
+    def product_description(self):
+        return self.product.description if self.product else None

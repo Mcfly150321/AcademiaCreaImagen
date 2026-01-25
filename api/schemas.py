@@ -89,7 +89,7 @@ class PackageBase(BaseModel):
     description: str
 
 class PackageCreate(PackageBase):
-    pass
+    products: Optional[List[PackageProductCreate]] = []
 
 class PackageSchema(PackageBase):
     id: int

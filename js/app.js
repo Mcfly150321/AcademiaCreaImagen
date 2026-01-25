@@ -715,9 +715,15 @@ function removeMainDraftProduct(index) {
 document.getElementById('main-package-form').onsubmit = async (e) => {
     e.preventDefault();
     const pkgId = document.getElementById('main-package-id').value;
+    
+    // Preparar el objeto atómico (JSON completo)
     const data = {
         name: document.getElementById('main-pkg-name').value,
-        description: document.getElementById('main-pkg-desc').value
+        description: document.getElementById('main-pkg-desc').value,
+        products: mainDraftProducts.map(p => ({
+            product_id: p.product_id,
+            quantity: p.quantity
+        }))
     };
 
     const method = pkgId ? 'PUT' : 'POST';
@@ -729,18 +735,10 @@ document.getElementById('main-package-form').onsubmit = async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        if (!response.ok) throw new Error("Error al guardar el paquete");
-        const savedPkg = await response.json();
-        const pkgIdToUse = pkgId || savedPkg.id;
-
-        for (const prod of mainDraftProducts) {
-            if (!prod.id) {
-                await fetch(`${API_URL}/packages/${pkgIdToUse}/products/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ product_id: prod.product_id, quantity: prod.quantity })
-                });
-            }
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Error al guardar el paquete");
         }
 
         alert("Paquete guardado con éxito");

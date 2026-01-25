@@ -257,10 +257,27 @@ def remove_product_from_package(package_id: int, product_id: int, db: Session = 
 
 @router.post("/packages/", response_model=schemas.PackageSchema)
 def create_package(package: schemas.PackageCreate, db: Session = Depends(get_db)):
-    db_package = models.Package(**package.dict())
+    # Extraer productos antes de crear el objeto Package
+    products_data = package.products
+    package_dict = package.dict(exclude={'products'})
+    
+    db_package = models.Package(**package_dict)
     db.add(db_package)
     db.commit()
     db.refresh(db_package)
+    
+    # Agregar productos si existen
+    if products_data:
+        for p in products_data:
+            db_item = models.PackageProduct(
+                package_id=db_package.id,
+                product_id=p.product_id,
+                quantity=p.quantity
+            )
+            db.add(db_item)
+        db.commit()
+        db.refresh(db_package)
+        
     return db_package
 
 @router.get("/packages/", response_model=List[schemas.PackageSchema])
@@ -318,8 +335,24 @@ def update_package(package_id: int, package_data: schemas.PackageCreate, db: Ses
     db_package = db.query(models.Package).get(package_id)
     if not db_package:
         raise HTTPException(status_code=404, detail="Package not found")
-    for key, value in package_data.dict().items():
-        setattr(db_package, key, value)
+    
+    # Actualizar datos básicos
+    db_package.name = package_data.name
+    db_package.description = package_data.description
+    
+    # Procesar productos (limpiar y recargar para sincronización simple)
+    # Una aproximación más avanzada compararía IDs, pero esto asegura consistencia total con el borrador del front
+    db.query(models.PackageProduct).filter(models.PackageProduct.package_id == package_id).delete()
+    
+    if package_data.products:
+        for p in package_data.products:
+            db_item = models.PackageProduct(
+                package_id=package_id,
+                product_id=p.product_id,
+                quantity=p.quantity
+            )
+            db.add(db_item)
+    
     db.commit()
     db.refresh(db_package)
     return db_package
