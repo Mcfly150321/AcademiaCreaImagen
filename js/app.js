@@ -406,6 +406,12 @@ document.getElementById('barcode-scan').addEventListener('keypress', (e) => {
     }
 });
 
+// Lógica del botón Reiniciar
+document.getElementById('reset-search').onclick = () => {
+    document.getElementById('barcode-scan').value = '';
+    loadAllproducts();
+};
+
 async function loadAlerts() {
     const container = document.getElementById('inventory-alerts-container');
     try {
@@ -654,7 +660,7 @@ async function loadModalStudents() {
                             </td>
                             <td>
                                 <label class="switch">
-                                    <input type="checkbox" ${s.package_paid ? 'checked' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'package')">
+                                    <input type="checkbox" ${s.package_paid ? 'checked' : ''} ${!s.package_id ? 'disabled' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'package')">
                                     <span class="slider"></span>
                                 </label>
                             </td>
@@ -685,8 +691,7 @@ async function assignPackageToStudent(wsId, studentId, pkgId) {
         const url = `${API_URL}/workshop-students/assign-package/?workshop_id=${wsId}&student_id=${studentId}&package_id=${pkgId || ''}`;
         const res = await fetch(url, { method: 'POST' });
         if (!res.ok) throw new Error("Error assigning package");
-        // Optativo: recargar para que el checkbox de "package_paid" tenga sentido o para confirmar
-        // loadModalStudents(); 
+        loadModalStudents(); 
     } catch (e) {
         console.error(e);
         alert("Error al asignar paquete");

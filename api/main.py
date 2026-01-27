@@ -378,6 +378,18 @@ def toggle_workshop_payment(workshop_id: int, student_id: str, payment_type: str
         raise HTTPException(status_code=404, detail="Student not found in workshop")
     
     if payment_type == "package":
+        # Descuento de bodega automático
+        if assoc.package_id:
+            db_package = db.query(models.Package).get(assoc.package_id)
+            if db_package:
+                for pkg_prod in db_package.products:
+                    product = pkg_prod.product
+                    if product:
+                        if not assoc.package_paid: # Se está marcando como pagado
+                            product.units -= pkg_prod.quantity
+                        else: # Se está desmarcando (reembolso)
+                            product.units += pkg_prod.quantity
+        
         assoc.package_paid = not assoc.package_paid
     elif payment_type == "workshop":
         assoc.workshop_paid = not assoc.workshop_paid
