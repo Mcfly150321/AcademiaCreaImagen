@@ -430,9 +430,15 @@ async function loadAlerts() {
         alerts.forEach(prod => {
             const div = document.createElement('div');
             div.className = 'alert-item';
+            
+            let label = `Quedan ${prod.units}`;
+            if (prod.units < 0) {
+                label = `Se debe comprar: ${Math.abs(prod.units)}`;
+            }
+
             div.innerHTML = `
                 <span>${prod.description} (Cód: ${prod.code})</span>
-                <strong>Quedan ${prod.units}</strong>
+                <strong>${label}</strong>
             `;
             container.appendChild(div);
         });

@@ -411,6 +411,17 @@ def assign_package_to_student(workshop_id: int, student_id: str, package_id: Opt
     if not assoc:
         raise HTTPException(status_code=404, detail="Student not found in workshop")
     
+    # REEMBOLSO DE STOCK: Si ya tenía un paquete pagado, hay que devolverlo a bodega antes de cambiarlo
+    if assoc.package_paid and assoc.package_id:
+        old_package = db.query(models.Package).get(assoc.package_id)
+        if old_package:
+            for pkg_prod in old_package.products:
+                product = pkg_prod.product
+                if product:
+                    product.units += pkg_prod.quantity
+    
+    # Siempre apagamos el switch de pago al cambiar de paquete para seguridad
+    assoc.package_paid = False
     assoc.package_id = package_id
     db.commit()
     return {"status": "success"}
