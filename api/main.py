@@ -126,6 +126,22 @@ def read_product_by_code(code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+@router.put("/products/{product_id}", response_model=schemas.ProductSchema)
+def update_product(product_id: int, product_data: schemas.ProductCreate, db: Session = Depends(get_db)):
+    db_product = db.query(models.Product).get(product_id)
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    db_product.code = product_data.code
+    db_product.description = product_data.description
+    db_product.cost = product_data.cost
+    db_product.units = product_data.units
+    db_product.alert_threshold = product_data.alert_threshold
+
+    db.commit()
+    db.refresh(db_product)
+    return db_product
+
 # Workshops
 @router.post("/workshops/", response_model=schemas.WorkshopSchema)
 def create_workshop(workshop: schemas.WorkshopBase, db: Session = Depends(get_db)):
@@ -393,11 +409,6 @@ def toggle_workshop_payment(workshop_id: int, student_id: str, payment_type: str
         assoc.package_paid = not assoc.package_paid
     elif payment_type == "workshop":
         assoc.workshop_paid = not assoc.workshop_paid
-    elif payment_type == "package_id":
-        # En este caso 'student_id' (que es un query param) no se usa para el id del pack,
-        # pero podemos pasar el id del pack en otro parametro o reutilizar.
-        # Mejor hagamos un endpoint separado para asignar paquete.
-        pass
     
     db.commit()
     return {"status": "success", "package_paid": assoc.package_paid, "workshop_paid": assoc.workshop_paid}

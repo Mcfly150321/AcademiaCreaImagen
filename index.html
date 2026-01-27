@@ -176,8 +176,8 @@
                         <!-- El JS solo llenará lo que vaya aquí adentro -->
                     </div>
                     <hr style="margin: 2rem 0;">
-                    <h3>Agregar producto</h3>
                     <form id="product-form">
+                        <input type="hidden" id="prod-id">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="prod-code">Código</label>
@@ -196,7 +196,10 @@
                                 <input type="number" id="prod-units" required>
                             </div>
                         </div>
-                        <button type="submit" class="btn-primary">Guardar Producto</button>
+                        <div style="margin-top: 10px; display: flex; gap: 10px;">
+                            <button type="submit" class="btn-primary" id="btn-save-prod">Guardar Producto</button>
+                            <button type="button" class="btn-secondary" id="btn-cancel-prod" style="display: none;">Cancelar Edición</button>
+                        </div>
                     </form>
                     <hr style="margin: 2rem 0;">
                     <h3>Buscar productos</h3>

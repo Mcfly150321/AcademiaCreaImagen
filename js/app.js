@@ -73,7 +73,6 @@ async function updateDashboardStats() {
         if (stats.server_year && stats.server_month) {
             serverYear = stats.server_year;
             serverMonth = stats.server_month;
-            console.log(`Server time synced: ${serverMonth}/${serverYear}`);
         }
     } catch (e) {
         console.error("Dashboard error:", e);
@@ -315,6 +314,7 @@ document.getElementById('filter-plan').addEventListener('change', (e) => {
 const productForm = document.getElementById('product-form');
 productForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const prodId = document.getElementById('prod-id').value;
     const data = {
         code: document.getElementById('prod-code').value,
         description: document.getElementById('prod-desc').value,
@@ -322,15 +322,18 @@ productForm.addEventListener('submit', async (e) => {
         units: parseInt(document.getElementById('prod-units').value)
     };
 
+    const method = prodId ? 'PUT' : 'POST';
+    const url = prodId ? `${API_URL}/products/${prodId}` : `${API_URL}/products/`;
+
     try {
-        const response = await fetch(`${API_URL}/products/`, {
-            method: 'POST',
+        const response = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         if (response.ok) {
-            alert("Producto guardado");
-            productForm.reset();
+            alert(prodId ? "Producto actualizado" : "Producto guardado");
+            cancelProductEdit();
             loadAlerts();
             loadAllproducts();
             updateDashboardStats();
@@ -343,6 +346,42 @@ productForm.addEventListener('submit', async (e) => {
         alert("Error de conexión con el servidor");
     }
 });
+
+async function editProduct(id) {
+    try {
+        const res = await fetch(`${API_URL}/products/`);
+        const allProducts = await res.json();
+        const p = allProducts.find(prod => prod.id === id);
+        if (p) {
+            document.getElementById('prod-id').value = p.id;
+            document.getElementById('prod-code').value = p.code;
+            document.getElementById('prod-desc').value = p.description;
+            document.getElementById('prod-cost').value = p.cost;
+            document.getElementById('prod-units').value = p.units;
+            
+            document.getElementById('btn-save-prod').textContent = "Actualizar Producto";
+            document.getElementById('btn-cancel-prod').style.display = 'inline-block';
+        }
+    } catch (e) { console.error(e); }
+}
+
+function cancelProductEdit() {
+    document.getElementById('prod-id').value = '';
+    productForm.reset();
+    document.getElementById('btn-save-prod').textContent = "Guardar Producto";
+    document.getElementById('btn-cancel-prod').style.display = 'none';
+}
+
+document.getElementById('btn-cancel-prod').onclick = cancelProductEdit;
+
+async function deleteProduct(id) {
+    if (!confirm("¿Eliminar este producto?")) return;
+    try {
+        await fetch(`${API_URL}/products/${id}`, { method: 'DELETE' });
+        loadAlerts();
+        loadAllproducts();
+    } catch (e) { console.error(e); }
+}
 
 // --- NUEVA FUNCIÓN DE BÚSQUEDA FLEXIBLE (FUZZY SEARCH) ---
 async function searchInventory() {
@@ -567,7 +606,6 @@ async function generateDiplomas(wsId) {
 async function openWorkshopDetail(wsId) {
     currentWsId = wsId;
     wsModal.style.display = "block";
-    console.log("Abriendo detalle de taller:", wsId);
     
     // Load WS Info
     try {
@@ -590,11 +628,9 @@ async function openWorkshopDetail(wsId) {
 
 async function fillStudentSelect() {
     try {
-        console.log("Cargando lista de alumnas para el modal...");
         const res = await fetch(`${API_URL}/students/`);
         if (!res.ok) throw new Error("Error loading students for select");
         const students = await res.json();
-        console.log("Alumnas recibidas:", students);
         const select = document.getElementById('modal-add-student-select');
         if (!Array.isArray(students) || students.length === 0) {
             select.innerHTML = '<option value="">Sin alumnas</option>';
@@ -666,7 +702,7 @@ async function loadModalStudents() {
                             </td>
                             <td>
                                 <label class="switch">
-                                    <input type="checkbox" ${s.package_paid ? 'checked' : ''} ${!s.package_id ? 'disabled' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'package')">
+                                    <input type="checkbox" id="switch-pkg-${s.student_id}" ${s.package_paid ? 'checked' : ''} ${!s.package_id ? 'disabled' : ''} onchange="toggleWsPay(${currentWsId}, '${s.student_id}', 'package')">
                                     <span class="slider"></span>
                                 </label>
                             </td>
@@ -694,7 +730,27 @@ async function removeStudentFromWorkshop(wsId, studentId) {
 
 async function assignPackageToStudent(wsId, studentId, pkgId) {
     try {
-        const url = `${API_URL}/workshop-students/assign-package/?workshop_id=${wsId}&student_id=${studentId}&package_id=${pkgId || ''}`;
+        const switchBtn = document.getElementById(`switch-pkg-${studentId}`);
+        
+        // Flujo solicitado para "Ninguno"
+        if (!pkgId || pkgId === "") {
+            // 1. Poner switch en OFF si estaba prendido (esto en el backend ya descuenta/reembolsa)
+            if (switchBtn && switchBtn.checked) {
+                await toggleWsPay(wsId, studentId, 'package');
+                switchBtn.checked = false;
+            }
+            // 2. Dar unos ms y bloquear
+            setTimeout(async () => {
+                if (switchBtn) switchBtn.disabled = true;
+                const url = `${API_URL}/workshop-students/assign-package/?workshop_id=${wsId}&student_id=${studentId}&package_id=`;
+                await fetch(url, { method: 'POST' });
+                loadModalStudents();
+            }, 300);
+            return;
+        }
+
+        // Caso normal (selección de paquete distinto a Ninguno)
+        const url = `${API_URL}/workshop-students/assign-package/?workshop_id=${wsId}&student_id=${studentId}&package_id=${pkgId}`;
         const res = await fetch(url, { method: 'POST' });
         if (!res.ok) throw new Error("Error assigning package");
         loadModalStudents(); 
